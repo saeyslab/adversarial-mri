@@ -56,13 +56,14 @@ class TargetedFGSM:
         elif t.dim() != 4: raise ValueError(f"Mask dim must be 2/3/4, got {t.dim()}")
         return t.to(device=device, dtype=ref.dtype)
 
-    def __call__(self, x_in, mask=None, alpha=0.3, w_in=1.0, w_out=1.0, patience=10, clip_min=0, clip_max=1):
+    def __call__(self, x_in, mask=None, alpha=0.3, w_in=1.0, w_out=1.0, patience=10):
         self.model.eval()
         device = next(self.model.parameters()).device
 
         x = self._to_4d_float_tensor(x_in, device)
         sigma, mu = torch.std_mean(x, dim=(-1, -2, -3), keepdim=True)
         sigma = sigma.clamp_min(1e-8)
+        clip_min, clip_max = x.min(), x.max()
 
         with torch.no_grad():
             y0 = (self.model(x) - mu) / sigma
@@ -77,7 +78,7 @@ class TargetedFGSM:
         else:
             y_tgt = y0
 
-        x_adv = x.detach().clone()
+        x_adv = torch.clamp(x.detach().clone() + self.step_size * (2*torch.rand_like(x) - 1), clip_min, clip_max)
         x_best = x_adv.clone()
         best_loss = np.inf
         timeout = 0
@@ -117,6 +118,6 @@ class TargetedFGSM:
             progbar.set_postfix({'loss': loss.item(), 'best': best_loss})
 
         with torch.no_grad():
-            y_adv = self.model(x_best)
+            y_adv = (self.model(x_best) - mu) / sigma
 
         return x_best, y_adv, y0, y_tgt, m

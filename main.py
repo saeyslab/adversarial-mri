@@ -1,7 +1,5 @@
 import argparse
 
-import random
-
 import torch
 
 import toml
@@ -28,7 +26,7 @@ parser.add_argument('data', type=str, help='path to the fastMRI data set')
 parser.add_argument('-out', type=str, default='./out', help='output directory')
 parser.add_argument('-model', type=str, default='unet', choices=['unet', 'varnet'], help='model to use for reconstruction')
 parser.add_argument('-iterations', type=int, default=150, help='number of iterations of the attack')
-parser.add_argument('-eps', type=float, default=5e-5, help='maximum perturbation size')
+parser.add_argument('-eps', type=float, default=1e-5, help='maximum perturbation size')
 parser.add_argument('-step', type=float, default=1e-6, help='attack step size')
 parser.add_argument('-organ', type=str, default='knee', choices=['knee', 'brain'])
 parser.add_argument('-coil', type=str, default='sc', choices=['sc', 'mc'], help='single-coil (sc) or multi-coil (mc)')
