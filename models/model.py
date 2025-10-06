@@ -1,7 +1,5 @@
 import torch
 
-from data import Sample
-
 from pathlib import Path
 
 class Model(torch.nn.Module):
@@ -16,5 +14,5 @@ class Model(torch.nn.Module):
         self.weight_path: Path = weight_path
         self.device = device
 
-    def forward(self, sample: Sample) -> torch.tensor:
+    def forward(self, images: torch.tensor) -> torch.tensor:
         pass

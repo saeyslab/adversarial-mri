@@ -1,7 +1,5 @@
 import torch
 
-import numpy as np
-
 import utils
 
 from pathlib import Path
@@ -9,8 +7,6 @@ from pathlib import Path
 from fastmri.models import Unet as UN
 
 from models.model import Model
-
-from data import Sample
 
 class UNet(Model):
     def __init__(self, subset: str, coil: str, weight_path: Path, config: dict, **kwargs):
@@ -29,22 +25,35 @@ class UNet(Model):
         self.model.load_state_dict(torch.load(weight_path, map_location=self.device))
         self.model = torch.nn.DataParallel(self.model)
 
-    def forward(self, sample: Sample, batch_size: int = 4) -> torch.tensor:
-        images = torch.from_numpy(utils.zero_fill(sample)).float()
-        mean, std = images.mean(dim=(-1, -2, -3), keepdim=True), images.std(dim=(-1, -2, -3), keepdim=True)
-        images = torch.clamp((images - mean) / std, -6, 6)
-    
-        with torch.no_grad():
-            num_batches = int(np.ceil(images.shape[0] / batch_size))
-            outputs = []
-            for b in range(num_batches):
-                start, end = b*batch_size, min((b+1)*batch_size, images.shape[0])
-                batch = images[start:end]
-                output = self.model(batch.to(self.device)).cpu()
+    def _to_bchw(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim == 2:                                # [H,W]
+            x = x.unsqueeze(0).unsqueeze(0)            # -- [1,1,H,W]
+        elif x.ndim == 3:                              # [B,H,W] or [C,H,W]
+            if x.shape[0] in (1, 3):                   # probably [C,H,W]
+                x = x.unsqueeze(0)                     # -- [1,C,H,W]
+                if x.shape[1] != 1:
+                    x = x.mean(dim=1, keepdim=True) 
+            else:                                   # [B,H,W]
+                x = x.unsqueeze(1)                  # --- [B,1,H,W]
+        elif x.ndim == 4:                           
+            if x.shape[1] != 1:
+                x = x.mean(dim=1, keepdim=True)     
+        elif x.ndim == 5 and x.shape[2] == 1:       # [B,1,1,H,W] 
+            x = x.squeeze(2)                        # -- [B,1,H,W]
+        else:
+            raise RuntimeError(f"Unsupported input shape: {x.shape}")
+        return x
 
-                outputs.append(output)
-    
-        results = torch.cat(outputs, dim=0)
-        results = results * std + mean
+    def _preprocess(self, x: torch.Tensor) -> tuple[torch.tensor, torch.tensor, torch.tensor]:
+        mean = x.mean(dim=(-1, -2, -3), keepdim=True)
+        std  = x.std(dim=(-1, -2, -3), keepdim=True).clamp_min(1e-8)
+        x = torch.clamp((x - mean) / std, -6, 6)
+        return x, mean, std
 
-        return results
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        x = images.to(self.device, dtype=torch.float32)
+        x = self._to_bchw(x)             
+        x, mean, std = self._preprocess(x)
+        y = self.model(x)
+        y = y * std + mean                
+        return y
