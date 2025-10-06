@@ -28,8 +28,8 @@ parser.add_argument('data', type=str, help='path to the fastMRI data set')
 parser.add_argument('-out', type=str, default='./out', help='output directory')
 parser.add_argument('-model', type=str, default='unet', choices=['unet', 'varnet'], help='model to use for reconstruction')
 parser.add_argument('-iterations', type=int, default=150, help='number of iterations of the attack')
-parser.add_argument('-eps', type=float, default=.01, help='maximum perturbation size')
-parser.add_argument('-step', type=float, default=.001, help='attack step size')
+parser.add_argument('-eps', type=float, default=5e-5, help='maximum perturbation size')
+parser.add_argument('-step', type=float, default=1e-6, help='attack step size')
 parser.add_argument('-organ', type=str, default='knee', choices=['knee', 'brain'])
 parser.add_argument('-coil', type=str, default='sc', choices=['sc', 'mc'], help='single-coil (sc) or multi-coil (mc)')
 parser.add_argument('-shape', type=str, default='line', choices=['line', 'square'], help='artefact type')
@@ -89,7 +89,7 @@ attacker = TargetedFGSM(
     n_iter=args.iterations
 )
 with open(csvpath, "w") as csvfile:
-    writer = csv.DictWriter(csvfile, fieldnames=['index', 'diff_x', 'diff_y0', 'diff_yt'])
+    writer = csv.DictWriter(csvfile, fieldnames=['index', 'metric'])
     writer.writeheader()
 
     for idx, sample in enumerate(tqdm(dataset)):
@@ -97,7 +97,7 @@ with open(csvpath, "w") as csvfile:
         zf = utils.zero_fill(sample)
 
         # choose a slice
-        slice_arr = zf[random.randint(0, sample.num_slices - 1)]
+        slice_arr = zf[sample.num_slices // 2]
         x0 = torch.from_numpy(slice_arr).float().unsqueeze(0).to(device)
 
         # reconstruct
@@ -114,13 +114,10 @@ with open(csvpath, "w") as csvfile:
         # run attack
         x_adv, y_adv, y0, y_tgt, m = attacker(x0, mask=mask, w_in=1)
         
-        y_rng = (y0.max() - y0.min()).item()
-        loss1 = abs(y0 - y_adv).max().item() / y_rng
-        loss2 = abs(y_adv - y_tgt).max().item() / y_rng
+        E_value = torch.sqrt((torch.square(y0 - y_adv) * m).sum() / torch.square(y0 - y_adv).sum())
         writer.writerow({
             'index': idx,
-            'diff_y0': loss1,
-            'diff_yt': loss2
+            'metric': E_value.item()
         })
         csvfile.flush()
 
@@ -144,3 +141,4 @@ with open(csvpath, "w") as csvfile:
 
         plt.tight_layout()
         plt.savefig(figpath / f"fig{idx:04d}.pdf")
+        plt.close()
