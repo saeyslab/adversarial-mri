@@ -122,6 +122,7 @@ with open(csvpath, "w") as csvfile:
             'diff_y0': loss1,
             'diff_yt': loss2
         })
+        csvfile.flush()
 
         # plot result
         fig, axes = plt.subplots(2, 2)
