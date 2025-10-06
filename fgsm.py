@@ -7,9 +7,10 @@ from models.model import Model
 
 from tqdm import trange
 
-class TargetedFGSM(nn.Module):
+from utils import normalize
+
+class TargetedFGSM:
     def __init__(self, model: Model, eps=0.02, step_size=1e-5, n_iter=10, loss_func=None):
-        super().__init__()
         self.model = model
         self.eps = float(eps)
         self.step_size = float(step_size)
@@ -55,14 +56,16 @@ class TargetedFGSM(nn.Module):
         elif t.dim() != 4: raise ValueError(f"Mask dim must be 2/3/4, got {t.dim()}")
         return t.to(device=device, dtype=ref.dtype)
 
-    def forward(self, x_in, mask=None, alpha=0.3, w_in=1.0, w_out=1.0, patience=10):
+    def __call__(self, x_in, mask=None, alpha=0.3, w_in=1.0, w_out=1.0, patience=10, clip_min=0, clip_max=1):
         self.model.eval()
         device = next(self.model.parameters()).device
 
         x = self._to_4d_float_tensor(x_in, device)
+        sigma, mu = torch.std_mean(x, dim=(-1, -2, -3), keepdim=True)
+        sigma = sigma.clamp_min(1e-8)
 
         with torch.no_grad():
-            y0 = self.model(x)
+            y0 = (self.model(x) - mu) / sigma
 
         m = self._to_mask_like(mask, y0, device) if mask is not None else None
         # y_tgt = y0 + alpha * m if m is not None else y0
@@ -73,13 +76,8 @@ class TargetedFGSM(nn.Module):
             y_tgt = y0 + alpha_eff * m
         else:
             y_tgt = y0
-    
-        clip_min, clip_max = x.min(), x.max()
-        x_rng = clip_max - clip_min
-        raw_eps = self.eps * x_rng
-        raw_step = self.step_size * x_rng
-        x_adv = x.detach().clone()
 
+        x_adv = x.detach().clone()
         x_best = x_adv.clone()
         best_loss = np.inf
         timeout = 0
@@ -87,23 +85,23 @@ class TargetedFGSM(nn.Module):
         progbar = trange(self.n_iter)
         for _ in progbar:
             x_adv.requires_grad_(True)
-            y = self.model(x_adv)
+            y = (self.model(x_adv) - mu) / sigma
 
             if m is None:
-                loss = -self.loss_func(y, y0)
+                loss = self.loss_func(y, y0)
             else:
-                loss_in  = (torch.square(y - y_tgt) * m).sum() / (m.sum() + 1e-8)
-                loss_out = (torch.square(y - y0) * (1 - m)).sum() / ((1 - m).sum() + 1e-8)
-                loss = w_in*loss_in + w_out*loss_out
+                loss1 = torch.square((y - y_tgt) * m).sum() / m.sum()
+                loss2 = torch.square((y - y0) * (1 - m)).sum() / (1 - m).sum()
+                loss = w_in * loss1 + w_out * loss2
 
             self.model.zero_grad(set_to_none=True)
             if x_adv.grad is not None: x_adv.grad.zero_()
             loss.backward()
 
             grad_sign = x_adv.grad.detach().sign()
-            x_adv = x_adv.detach() - raw_step * grad_sign
+            x_adv = x_adv.detach() - self.step_size * grad_sign
 
-            delta = torch.clamp(x_adv - x, min=-raw_eps, max=raw_eps)
+            delta = torch.clamp(x_adv - x, min=-self.eps, max=self.eps)
             x_adv = (x + delta).clamp(clip_min, clip_max)
 
             if loss.item() < best_loss:
