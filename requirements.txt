@@ -11,3 +11,6 @@ tqdm
 opencv-python
 scikit-image
 fastmri
+toml
+PyWavelets
+sigpy
