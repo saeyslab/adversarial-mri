@@ -1,0 +1,10 @@
+# UNet config options
+unet-url = "https://dl.fbaipublicfiles.com/fastMRI/trained_models/unet"
+unet-knee-sc = "knee_sc_leaderboard_state_dict.pt"
+unet-knee-mc = "knee_mc_leaderboard_state_dict.pt"
+unet-brain-mc = "brain_leaderboard_state_dict.pt"
+
+# VarNet config options
+varnet-url = "https://dl.fbaipublicfiles.com/fastMRI/trained_models/varnet"
+varnet-knee-mc = "knee_leaderboard_state_dict.pt"
+varnet-brain-mc = "brain_leaderboard_state_dict.pt"
