@@ -7,8 +7,6 @@ from models.model import Model
 
 from tqdm import trange
 
-from utils import normalize
-
 class TargetedFGSM:
     def __init__(self, model: Model, eps=0.02, step_size=1e-5, n_iter=10, loss_func=None):
         self.model = model
@@ -116,6 +114,8 @@ class TargetedFGSM:
                 break
 
             progbar.set_postfix({'loss': loss.item(), 'best': best_loss})
+            
+            del loss, y, delta
 
         with torch.no_grad():
             y_adv = (self.model(x_best) - mu) / sigma
