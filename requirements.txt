@@ -14,3 +14,5 @@ fastmri
 toml
 PyWavelets
 sigpy
+pandas
+tabulate
