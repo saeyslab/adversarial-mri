@@ -50,9 +50,11 @@ outpath = Path(args.out) / f"{args.coil}_{args.organ}"
 outpath.mkdir(exist_ok=True, parents=True)
 weightpath = outpath / f"{args.model}.pt"
 
-csvpath = outpath / "scores.csv"
+csvdir = outpath / args.shape
+csvdir.mkdir(exist_ok=True)
+csvpath = csvdir / "scores.csv"
 
-figpath = outpath / "figures"
+figpath = outpath / args.shape / "figures"
 figpath.mkdir(exist_ok=True)
 
 # load model
