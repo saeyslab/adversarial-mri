@@ -89,7 +89,10 @@ attacker = TargetedFGSM(
     n_iter=args.iterations
 )
 with open(csvpath, "w") as csvfile:
-    writer = csv.DictWriter(csvfile, fieldnames=['index', 'metric'])
+    writer = csv.DictWriter(csvfile, fieldnames=[
+        'total_residual', 'masked_residual', 'unmasked_residual',
+        'total_residual_tgt', 'masked_residual_tgt', 'unmasked_residual_tgt'
+    ])
     writer.writeheader()
 
     for idx, sample in enumerate(tqdm(dataset)):
@@ -114,10 +117,21 @@ with open(csvpath, "w") as csvfile:
         # run attack
         x_adv, y_adv, y0, y_tgt, m = attacker(x0, mask=mask, w_in=1)
         
-        E_value = torch.sqrt((torch.square(y0 - y_adv) * m).sum() / torch.square(y0 - y_adv).sum())
+        v0 = torch.sqrt(torch.square(y0 - y_adv).sum())
+        v1 = torch.sqrt((torch.square(y0 - y_adv) * m).sum())
+        v2 = torch.sqrt((torch.square(y0 - y_adv) * (1 - m)).sum())
+        
+        w0 = torch.sqrt(torch.square(y_tgt - y_adv).sum())
+        w1 = torch.sqrt((torch.square(y_tgt - y_adv) * m).sum())
+        w2 = torch.sqrt((torch.square(y_tgt - y_adv) * (1 - m)).sum())
         writer.writerow({
-            'index': idx,
-            'metric': E_value.item()
+            'total_residual': v0.item(),
+            'masked_residual': v1.item(),
+            'unmasked_residual': v2.item(),
+
+            'total_residual_tgt': w0.item(),
+            'masked_residual_tgt': w1.item(),
+            'unmasked_residual_tgt': w2.item()
         })
         csvfile.flush()
 
