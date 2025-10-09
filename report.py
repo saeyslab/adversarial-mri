@@ -4,6 +4,8 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
+import numpy as np
+
 from pathlib import Path
 
 from tabulate import tabulate
@@ -34,12 +36,14 @@ for organ in ['knee', 'brain']:
                 scores.append(data)
 
                 for k in summaries.keys():
-                    summaries[k].append(f"{data[k].mean():.2f} ({data[k].std():.2f})")
+                    err = 1.96*data[k].std()/np.sqrt(len(data))
+                    summaries[k].append(f"{data[k].mean():.2f} ({err:.2f})")
 
                 label = f"{organ} ({coil}) - {shape}"
                 labels.append(label)
 
 df = pd.DataFrame(summaries)
+df['name'] = labels
 print(tabulate(df, headers='keys', tablefmt='psql'))
 
 for i in range(len(scores)):
