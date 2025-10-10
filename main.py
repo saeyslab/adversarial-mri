@@ -96,16 +96,26 @@ with open(csvpath, "w") as csvfile:
     writer.writeheader()
 
     for idx, sample in enumerate(tqdm(dataset)):
-        # zero-fill the entire sample
-        zf = utils.zero_fill(sample)
+        if args.model == 'unet':
+            # zero-fill the entire sample
+            zf = utils.zero_fill(sample)
 
-        # choose a slice
-        slice_arr = zf[sample.num_slices // 2]
-        x0 = torch.from_numpy(slice_arr).float().unsqueeze(0).to(device)
+            # choose a slice
+            slice_arr = zf[sample.num_slices // 2]
+            x0 = torch.from_numpy(slice_arr).float().unsqueeze(0).to(device)
 
-        # reconstruct
-        with torch.no_grad():
-            y0 = model(x0)
+            # reconstruct
+            with torch.no_grad():
+                y0 = model(x0)
+        elif args.model == 'varnet':
+            # choose a slice
+            idx = sample.num_slices // 2
+            slice_arr = utils.kspace_to_image(sample.masked_kspace[idx])
+            x0 = torch.from_numpy(slice_arr).unsqueeze(0).to(device)
+
+            # reconstruct
+            with torch.no_grad():
+                y0 = model(x0)
         
         # construct mask
         mask_params = mask_drawings[args.shape]
@@ -138,7 +148,11 @@ with open(csvpath, "w") as csvfile:
         # plot result
         fig, axes = plt.subplots(2, 2)
         axes[0,0].set_title(r"$x$")
-        axes[0,0].imshow(utils.normalize(x0).cpu().detach().numpy().squeeze(), cmap='gray')
+        if args.model == 'unet':
+            axes[0,0].imshow(utils.normalize(x0).cpu().detach().numpy().squeeze(), cmap='gray')
+        elif args.model == 'varnet':
+            z = utils.rss(x0.cpu().detach().numpy())
+            axes[0,0].imshow(utils.normalize(z).squeeze(), cmap='gray')
         axes[0,0].set_axis_off()
 
         axes[1,0].set_title(r"$F(x)$")
@@ -146,7 +160,11 @@ with open(csvpath, "w") as csvfile:
         axes[1,0].set_axis_off()
 
         axes[0,1].set_title(r"$\tilde x$")
-        axes[0,1].imshow(utils.normalize(x_adv).cpu().detach().numpy().squeeze(), cmap='gray')
+        if args.model == 'unet':
+            axes[0,1].imshow(utils.normalize(x_adv).cpu().detach().numpy().squeeze(), cmap='gray')
+        elif args.model == 'varnet':
+            z = utils.rss(x_adv.cpu().detach().numpy())
+            axes[0,1].imshow(utils.normalize(z).squeeze(), cmap='gray')
         axes[0,1].set_axis_off()
 
         axes[1,1].set_title(r"$F(\tilde x)$")
