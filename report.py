@@ -10,6 +10,10 @@ from pathlib import Path
 
 from tabulate import tabulate
 
+from scipy.spatial import ConvexHull
+
+from utils import normalize
+
 # parser arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-out', type=str, default='./out', help='output directory')
@@ -39,8 +43,8 @@ if csvpath.exists():
     df = pd.DataFrame(summaries)
     print(tabulate(df, headers='keys', tablefmt='psql'))
 
-    xs = data['unmasked_residual'] / data['total_residual']
-    ys = data['masked_residual_tgt'] / data['total_residual_tgt']
+    xs = normalize(data['total_residual'])
+    ys = normalize(data['total_residual_tgt'])
     plt.scatter(xs, ys)
 
     plt.title(f"{args.organ} ({args.coil}) - {args.shape}")
@@ -49,3 +53,13 @@ if csvpath.exists():
     plt.xlabel('ground truth')
     plt.ylabel('target')
     plt.show()
+
+    points = np.zeros([xs.shape[0], 2])
+    points[:, 0] = xs
+    points[:, 1] = ys
+
+    hull = ConvexHull(points)
+    verts = points[hull.vertices]
+    for idx, vert in zip(hull.vertices, verts):
+        if vert[0] < .5 and vert[1] < .5:
+            print(f"{idx:04d}: {vert}")
