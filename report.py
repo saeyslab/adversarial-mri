@@ -17,6 +17,7 @@ from utils import normalize
 # parser arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-out', type=str, default='./out', help='output directory')
+parser.add_argument('-model', type=str, default='unet', choices=['unet', 'varnet'], help='model to use for reconstruction')
 parser.add_argument('-organ', type=str, default='knee', choices=['knee', 'brain'])
 parser.add_argument('-coil', type=str, default='sc', choices=['sc', 'mc'], help='single-coil (sc) or multi-coil (mc)')
 parser.add_argument('-shape', type=str, default='line', choices=['line', 'square'], help='artefact type')
@@ -32,7 +33,7 @@ summaries = {
     'masked_residual_tgt': [],
     'unmasked_residual_tgt': [],
 }
-csvpath = Path(args.out) / f"{args.coil}_{args.organ}" / args.shape / "scores.csv"
+csvpath = Path(args.out) / args.model / f"{args.coil}_{args.organ}" / args.shape / "scores.csv"
 if csvpath.exists():
     data = pd.read_csv(csvpath)
 

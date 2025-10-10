@@ -46,7 +46,7 @@ print(f"[*] Device: {device}")
 config = toml.load('config.toml')
 
 # create directories
-outpath = Path(args.out) / f"{args.coil}_{args.organ}"
+outpath = Path(args.out) / args.model / f"{args.coil}_{args.organ}"
 outpath.mkdir(exist_ok=True, parents=True)
 weightpath = outpath / f"{args.model}.pt"
 
