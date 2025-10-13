@@ -6,6 +6,8 @@ import toml
 
 import csv
 
+import numpy as np
+
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
@@ -26,8 +28,8 @@ parser.add_argument('data', type=str, help='path to the fastMRI data set')
 parser.add_argument('-out', type=str, default='./out', help='output directory')
 parser.add_argument('-model', type=str, default='unet', choices=['unet', 'varnet'], help='model to use for reconstruction')
 parser.add_argument('-iterations', type=int, default=150, help='number of iterations of the attack')
-parser.add_argument('-eps', type=float, default=1e-5, help='maximum perturbation size')
-parser.add_argument('-step', type=float, default=1e-6, help='attack step size')
+parser.add_argument('-eps', type=float, default=1e-6, help='maximum perturbation size')
+parser.add_argument('-step', type=float, default=1e-7, help='attack step size')
 parser.add_argument('-organ', type=str, default='knee', choices=['knee', 'brain'])
 parser.add_argument('-coil', type=str, default='sc', choices=['sc', 'mc'], help='single-coil (sc) or multi-coil (mc)')
 parser.add_argument('-shape', type=str, default='line', choices=['line', 'square'], help='artefact type')
@@ -90,6 +92,7 @@ attacker = TargetedFGSM(
 )
 with open(csvpath, "w") as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=[
+        'perturbation',
         'total_residual', 'masked_residual', 'unmasked_residual',
         'total_residual_tgt', 'masked_residual_tgt', 'unmasked_residual_tgt'
     ])
@@ -112,6 +115,8 @@ with open(csvpath, "w") as csvfile:
         
         # run attack
         x_adv, y_adv, y_tgt, m = attacker(sample, mask=mask, w_in=1)
+
+        u = np.sqrt(np.square(x0 - x_adv.cpu().detach().numpy()).sum())
         
         v0 = torch.sqrt(torch.square(y0 - y_adv).sum())
         v1 = torch.sqrt((torch.square(y0 - y_adv) * m).sum())
@@ -121,6 +126,8 @@ with open(csvpath, "w") as csvfile:
         w1 = torch.sqrt((torch.square(y_tgt - y_adv) * m).sum())
         w2 = torch.sqrt((torch.square(y_tgt - y_adv) * (1 - m)).sum())
         writer.writerow({
+            'perturbation': u,
+
             'total_residual': v0.item(),
             'masked_residual': v1.item(),
             'unmasked_residual': v2.item(),
