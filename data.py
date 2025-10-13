@@ -4,6 +4,8 @@ import h5py
 
 import utils
 
+import torch
+
 import xml.etree.ElementTree as etree
 
 from glob import glob
@@ -54,8 +56,8 @@ class Sample:
         Arguments:
             fname (string): Filename of the HDF5 file to load.
         """
-        self.kspace: np.ndarray = None
-        self.mask: np.ndarray = None
+        self.kspace: np.ndarray | torch.Tensor = None
+        self.mask: np.ndarray | torch.Tensor = None
         self.metadata: dict = {}
 
         if fname:
@@ -107,11 +109,37 @@ class Sample:
         assert len(self.kspace.shape) == 4, f'Invalid shape for k-space: {self.kspace.shape}'
         assert self.mask.shape[0] == self.kspace.shape[-1], f'k-space mask shape ({self.mask.shape}) should match k-space width ({self.kspace.shape[-1]})'
     
+    def is_numpy(self) -> bool:
+        return isinstance(self.kspace, np.ndarray)
+
     @staticmethod
-    def from_numpy(kspace: np.ndarray, mask: np.ndarray = None) -> 'Sample':
+    def from_numpy(kspace: np.ndarray, mask: np.ndarray = None, metadata: dict = None) -> 'Sample':
         sample = Sample(None)
         sample.kspace = kspace
         sample.mask = mask
+        sample.metadata = metadata
+        sample.validate()
+        return sample
+    
+    @staticmethod
+    def from_torch(kspace: torch.Tensor, mask: torch.Tensor = None, metadata: dict = None) -> 'Sample':
+        sample = Sample(None)
+        sample.kspace = kspace
+        sample.mask = mask
+        sample.metadata = metadata
+        sample.validate()
+        return sample
+    
+    def at_slice(self, idx: int) -> 'Sample':
+        assert idx >= 0 and idx < self.num_slices, f'Invalid slice index: {idx}'
+
+        sample = Sample(None)
+        if isinstance(self.kspace, np.ndarray):
+            sample.kspace = self.kspace[idx][None]
+        else:
+            sample.kspace = self.kspace[idx].unsqueeze(0)
+        sample.mask = self.mask
+        sample.metadata = self.metadata
         sample.validate()
         return sample
 
