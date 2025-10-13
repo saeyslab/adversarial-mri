@@ -1,9 +1,13 @@
 import torch
 import torch.nn as nn
 
+import utils
+
 import numpy as np
 
 from models.model import Model
+
+from data import Sample
 
 from tqdm import trange
 
@@ -54,17 +58,19 @@ class TargetedFGSM:
         elif t.dim() != 4: raise ValueError(f"Mask dim must be 2/3/4, got {t.dim()}")
         return t.to(device=device, dtype=ref.dtype)
 
-    def __call__(self, x_in, mask=None, alpha=0.3, w_in=1.0, w_out=1.0, patience=10):
+    def __call__(self, sample: Sample, mask=None, alpha=0.3, w_in=1.0, w_out=1.0, patience=10):
         self.model.eval()
         device = next(self.model.parameters()).device
 
-        x = self._to_4d_float_tensor(x_in, device)
+        mask_pt = torch.from_numpy(sample.mask).to(device)
+        x = torch.from_numpy(sample.kspace.real).to(device)
+        z = torch.from_numpy(sample.kspace.imag * 1j).to(device)
         sigma, mu = torch.std_mean(x, dim=(-1, -2, -3), keepdim=True)
         sigma = sigma.clamp_min(1e-8)
         clip_min, clip_max = x.min(), x.max()
 
         with torch.no_grad():
-            y0 = (self.model(x) - mu) / sigma
+            y0 = self.model(sample)
 
         m = self._to_mask_like(mask, y0, device) if mask is not None else None
         # y_tgt = y0 + alpha * m if m is not None else y0
@@ -84,7 +90,8 @@ class TargetedFGSM:
         progbar = trange(self.n_iter)
         for _ in progbar:
             x_adv.requires_grad_(True)
-            y = (self.model(x_adv) - mu) / sigma
+            adv_sample = Sample.from_torch(x_adv + z, mask_pt, sample.metadata)
+            y = self.model(adv_sample)
 
             if m is None:
                 loss = self.loss_func(y, y0)
@@ -93,8 +100,6 @@ class TargetedFGSM:
                 loss2 = torch.square((y - y0) * (1 - m)).sum() / (1 - m).sum()
                 loss = w_in * loss1 + w_out * loss2
 
-            self.model.zero_grad(set_to_none=True)
-            if x_adv.grad is not None: x_adv.grad.zero_()
             loss.backward()
 
             grad_sign = x_adv.grad.detach().sign()
@@ -115,9 +120,12 @@ class TargetedFGSM:
 
             progbar.set_postfix({'loss': loss.item(), 'best': best_loss})
             
+            self.model.zero_grad(set_to_none=True)
+            if x_adv.grad is not None: x_adv.grad.zero_()
             del loss, y, delta
 
         with torch.no_grad():
-            y_adv = (self.model(x_best) - mu) / sigma
+            adv_sample = Sample.from_torch(x_best + z, mask_pt, sample.metadata)
+            y_adv = self.model(adv_sample)
 
-        return x_best, y_adv, y0, y_tgt, m
+        return utils.rss(adv_sample.image), y_adv, y_tgt, m

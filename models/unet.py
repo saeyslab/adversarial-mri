@@ -8,6 +8,8 @@ from fastmri.models import Unet as UN
 
 from models.model import Model
 
+from data import Sample
+
 class UNet(Model):
     def __init__(self, subset: str, coil: str, weight_path: Path, config: dict, **kwargs):
         super().__init__(weight_path, **kwargs)
@@ -25,35 +27,11 @@ class UNet(Model):
         self.model.load_state_dict(torch.load(weight_path, map_location=self.device))
         self.model = torch.nn.DataParallel(self.model)
 
-    def _to_bchw(self, x: torch.Tensor) -> torch.Tensor:
-        if x.ndim == 2:                                # [H,W]
-            x = x.unsqueeze(0).unsqueeze(0)            # -- [1,1,H,W]
-        elif x.ndim == 3:                              # [B,H,W] or [C,H,W]
-            if x.shape[0] in (1, 3):                   # probably [C,H,W]
-                x = x.unsqueeze(0)                     # -- [1,C,H,W]
-                if x.shape[1] != 1:
-                    x = x.mean(dim=1, keepdim=True) 
-            else:                                   # [B,H,W]
-                x = x.unsqueeze(1)                  # --- [B,1,H,W]
-        elif x.ndim == 4:                           
-            if x.shape[1] != 1:
-                x = x.mean(dim=1, keepdim=True)     
-        elif x.ndim == 5 and x.shape[2] == 1:       # [B,1,1,H,W] 
-            x = x.squeeze(2)                        # -- [B,1,H,W]
-        else:
-            raise RuntimeError(f"Unsupported input shape: {x.shape}")
-        return x
+    def forward(self, sample: Sample) -> torch.tensor:
+        images = torch.from_numpy(utils.zero_fill(sample)).float()
+        mean, std = images.mean(dim=(-1, -2, -3), keepdim=True), images.std(dim=(-1, -2, -3), keepdim=True)
+        images = torch.clamp((images - mean) / std, -6, 6)
+    
+        output = self.model(images.to(self.device)) * std + mean
 
-    def _preprocess(self, x: torch.Tensor) -> tuple[torch.tensor, torch.tensor, torch.tensor]:
-        mean = x.mean(dim=(-1, -2, -3), keepdim=True)
-        std  = x.std(dim=(-1, -2, -3), keepdim=True).clamp_min(1e-8)
-        x = torch.clamp((x - mean) / std, -6, 6)
-        return x, mean, std
-
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
-        x = images.to(self.device, dtype=torch.float32)
-        x = self._to_bchw(x)             
-        x, mean, std = self._preprocess(x)
-        y = self.model(x)
-        y = y * std + mean                
-        return y
+        return results

@@ -96,36 +96,22 @@ with open(csvpath, "w") as csvfile:
     writer.writeheader()
 
     for idx, sample in enumerate(tqdm(dataset)):
-        if args.model == 'unet':
-            # zero-fill the entire sample
-            zf = utils.zero_fill(sample)
+        # choose slice
+        sample = sample.at_slice(sample.num_slices // 2)
 
-            # choose a slice
-            slice_arr = zf[sample.num_slices // 2]
-            x0 = torch.from_numpy(slice_arr).float().unsqueeze(0).to(device)
+        # original reconstruction
+        y0 = model(sample).unsqueeze(0)
+        x0 = utils.zero_fill(sample)
 
-            # reconstruct
-            with torch.no_grad():
-                y0 = model(x0)
-        elif args.model == 'varnet':
-            # choose a slice
-            idx = sample.num_slices // 2
-            slice_arr = utils.kspace_to_image(sample.masked_kspace[idx])
-            x0 = torch.from_numpy(slice_arr).unsqueeze(0).to(device)
-
-            # reconstruct
-            with torch.no_grad():
-                y0 = model(x0)
-        
         # construct mask
         mask_params = mask_drawings[args.shape]
         mask = utils.make_xdet_cv_like(y0,
                                 kind=args.shape,
                                 size=mask_params['size'], thickness=mask_params['thickness'],
-                                value=1.0).to(device, dtype=x0.dtype)
+                                value=1.0).to(device, dtype=y0.dtype)
         
         # run attack
-        x_adv, y_adv, y0, y_tgt, m = attacker(x0, mask=mask, w_in=1)
+        x_adv, y_adv, y_tgt, m = attacker(sample, mask=mask, w_in=1)
         
         v0 = torch.sqrt(torch.square(y0 - y_adv).sum())
         v1 = torch.sqrt((torch.square(y0 - y_adv) * m).sum())
@@ -148,11 +134,7 @@ with open(csvpath, "w") as csvfile:
         # plot result
         fig, axes = plt.subplots(2, 2)
         axes[0,0].set_title(r"$x$")
-        if args.model == 'unet':
-            axes[0,0].imshow(utils.normalize(x0).cpu().detach().numpy().squeeze(), cmap='gray')
-        elif args.model == 'varnet':
-            z = utils.rss(x0.cpu().detach().numpy())
-            axes[0,0].imshow(utils.normalize(z).squeeze(), cmap='gray')
+        axes[0,0].imshow(utils.normalize(x0).squeeze(), cmap='gray')
         axes[0,0].set_axis_off()
 
         axes[1,0].set_title(r"$F(x)$")
@@ -160,11 +142,7 @@ with open(csvpath, "w") as csvfile:
         axes[1,0].set_axis_off()
 
         axes[0,1].set_title(r"$\tilde x$")
-        if args.model == 'unet':
-            axes[0,1].imshow(utils.normalize(x_adv).cpu().detach().numpy().squeeze(), cmap='gray')
-        elif args.model == 'varnet':
-            z = utils.rss(x_adv.cpu().detach().numpy())
-            axes[0,1].imshow(utils.normalize(z).squeeze(), cmap='gray')
+        axes[0,1].imshow(utils.normalize(x_adv).cpu().detach().numpy().squeeze(), cmap='gray')
         axes[0,1].set_axis_off()
 
         axes[1,1].set_title(r"$F(\tilde x)$")
