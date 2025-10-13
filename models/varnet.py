@@ -67,4 +67,4 @@ class VarNet(Model):
         output = abs(output - output.mean())
         output = CenterCrop(orig_size)(output)
 
-        return output
+        return output.unsqueeze(0)
