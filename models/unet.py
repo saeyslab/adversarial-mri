@@ -28,10 +28,13 @@ class UNet(Model):
         self.model = torch.nn.DataParallel(self.model)
 
     def forward(self, sample: Sample) -> torch.tensor:
-        images = torch.from_numpy(utils.zero_fill(sample)).float()
+        if sample.is_numpy():
+            images = torch.from_numpy(utils.rss(sample.image)).float().to(self.device)
+        else:
+            images = utils.rss(sample.image).float().to(self.device)
         mean, std = images.mean(dim=(-1, -2, -3), keepdim=True), images.std(dim=(-1, -2, -3), keepdim=True)
         images = torch.clamp((images - mean) / std, -6, 6)
     
-        output = self.model(images.to(self.device)) * std + mean
+        output = self.model(images) * std + mean
 
-        return results
+        return output

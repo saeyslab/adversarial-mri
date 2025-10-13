@@ -191,12 +191,22 @@ def normalize(x):
     return (x - x.min()) / (x.max() - x.min())
 
 def image_to_kspace(image):
-    kspace = np.fft.fft2(np.fft.fftshift(image, axes=[-1, -2]), axes=[-1, -2])
+    if isinstance(image, np.ndarray):
+        kspace = np.fft.fft2(np.fft.fftshift(image, axes=[-1, -2]), axes=[-1, -2])
+    elif isinstance(image, torch.Tensor):
+        kspace = torch.fft.fft2(torch.fft.fftshift(image, dim=(-2, -1)), dim=(-2, -1))
+    else:
+        raise TypeError("Invalid data type")
     return kspace
 
 def kspace_to_image(ksp):
-    image = np.fft.ifftshift(np.fft.ifft2(ksp, axes=[-1, -2]), axes=[-1, -2])
-    return abs(image)
+    if isinstance(ksp, np.ndarray):
+        image = np.fft.ifftshift(np.fft.ifft2(ksp, axes=[-1, -2]), axes=[-1, -2])
+    elif isinstance(ksp, torch.Tensor):
+        image = torch.fft.ifftshift(torch.fft.ifft2(ksp, dim=(-2, -1)), dim=(-2, -1))
+    else:
+        raise TypeError("Invalid data type")
+    return image.real
 
 def download_model(url: str, fname: str):
     response = requests.get(url, timeout=10, stream=True)
@@ -228,5 +238,10 @@ def sparsity_norm(x, wavelet='coif5', level=2):
 def zero_fill(sample: 'Sample') -> np.ndarray:
     return rss(sigpy.ifft(sample.masked_kspace, axes=(-1, -2)))
 
-def rss(img: np.ndarray) -> np.ndarray:
-    return np.sqrt(np.sum(np.square(abs(img)), axis=1, keepdims=True))
+def rss(img):
+    if isinstance(img, np.ndarray):
+        return np.sqrt(np.sum(np.square(abs(img)), axis=1, keepdims=True))
+    elif isinstance(img, torch.Tensor):
+        return torch.sqrt(torch.sum(torch.square(abs(img)), dim=1, keepdims=True))
+    else:
+        raise TypeError("Invalid data type")

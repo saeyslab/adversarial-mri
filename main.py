@@ -100,7 +100,7 @@ with open(csvpath, "w") as csvfile:
         sample = sample.at_slice(sample.num_slices // 2)
 
         # original reconstruction
-        y0 = model(sample).unsqueeze(0)
+        y0 = model(sample)
         x0 = utils.zero_fill(sample)
 
         # construct mask
