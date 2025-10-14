@@ -40,6 +40,10 @@ if csvpath.exists():
     df = pd.DataFrame(summaries)
     print(tabulate(df, headers='keys', tablefmt='psql'))
 
+    zs = data['perturbation']
+    mu, err = zs.mean(), 1.96*zs.std() / np.sqrt(len(zs))
+    print(f"Perturbation: {mu:.2f} +- {err:.2f}")
+
     xs = data['unmasked_residual']
     ys = data['masked_residual_tgt']
     plt.scatter(xs, ys)
@@ -48,7 +52,3 @@ if csvpath.exists():
     plt.xlabel('ground truth')
     plt.ylabel('target')
     plt.show()
-
-    zs = (xs + ys) / 2
-    mu, err = zs.mean(), 1.96*zs.std() / np.sqrt(len(zs))
-    print(f"Score: {mu:.2f} +- {err:.2f}")
