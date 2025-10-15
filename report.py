@@ -46,9 +46,12 @@ if csvpath.exists():
 
     xs = data['unmasked_residual']
     ys = data['masked_residual_tgt']
-    plt.scatter(xs, ys)
 
-    plt.title(f"{args.organ} ({args.coil}) - {args.shape}")
-    plt.xlabel('ground truth')
-    plt.ylabel('target')
+    plt.title(f"{args.model}: {args.organ} ({args.coil}) - {args.shape}")
+    plt.boxplot([zs, xs, ys], tick_labels=['perturbation', 'unmasked residual', 'masked residual (target)'])
     plt.show()
+
+    ts = xs + ys + zs
+    idx = np.argsort(ts).to_list()
+    print(f'Top scoring  : {idx[:10]}')
+    print(f'Worst scoring: {idx[-10:]}')
