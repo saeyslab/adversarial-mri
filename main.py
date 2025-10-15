@@ -22,6 +22,8 @@ from models.varnet import VarNet
 
 from fgsm import TargetedFGSM
 
+from skimage.metrics import peak_signal_noise_ratio as psnr
+
 # parser arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('data', type=str, help='path to the fastMRI data set')
@@ -94,7 +96,8 @@ with open(csvpath, "w") as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=[
         'perturbation',
         'total_residual', 'masked_residual', 'unmasked_residual',
-        'total_residual_tgt', 'masked_residual_tgt', 'unmasked_residual_tgt'
+        'total_residual_tgt', 'masked_residual_tgt', 'unmasked_residual_tgt',
+        'x_psnr', 'y_psnr'
     ])
     writer.writeheader()
 
@@ -116,6 +119,12 @@ with open(csvpath, "w") as csvfile:
         # run attack
         x_adv, y_adv, y_tgt, m = attacker(sample, mask=mask, w_in=1)
 
+        # compute metrics
+        x0 = utils.normalize(x0)
+        y0 = utils.normalize(y0)
+        x_adv = utils.normalize(x_adv)
+        y_adv = utils.normalize(y_adv)
+
         u = np.sqrt(np.square(x0 - x_adv.cpu().detach().numpy()).sum())
         
         v0 = torch.sqrt(torch.square(y0 - y_adv).sum())
@@ -134,26 +143,29 @@ with open(csvpath, "w") as csvfile:
 
             'total_residual_tgt': w0.item(),
             'masked_residual_tgt': w1.item(),
-            'unmasked_residual_tgt': w2.item()
+            'unmasked_residual_tgt': w2.item(),
+
+            'x_psnr': psnr(x0, x_adv.cpu().detach().numpy()),
+            'y_psnr': psnr(y0.cpu().detach().numpy(), y_adv.cpu().detach().numpy())
         })
         csvfile.flush()
 
         # plot result
         fig, axes = plt.subplots(2, 2)
         axes[0,0].set_title(r"$x$")
-        axes[0,0].imshow(utils.normalize(x0).squeeze(), cmap='gray')
+        axes[0,0].imshow(x0.squeeze(), cmap='gray')
         axes[0,0].set_axis_off()
 
         axes[1,0].set_title(r"$F(x)$")
-        axes[1,0].imshow(utils.normalize(y0).cpu().detach().numpy().squeeze(), cmap='gray')
+        axes[1,0].imshow(y0.cpu().detach().numpy().squeeze(), cmap='gray')
         axes[1,0].set_axis_off()
 
         axes[0,1].set_title(r"$\tilde x$")
-        axes[0,1].imshow(utils.normalize(x_adv).cpu().detach().numpy().squeeze(), cmap='gray')
+        axes[0,1].imshow(x_adv.cpu().detach().numpy().squeeze(), cmap='gray')
         axes[0,1].set_axis_off()
 
         axes[1,1].set_title(r"$F(\tilde x)$")
-        axes[1,1].imshow(utils.normalize(y_adv).cpu().detach().numpy().squeeze(), cmap='gray')
+        axes[1,1].imshow(y_adv.cpu().detach().numpy().squeeze(), cmap='gray')
         axes[1,1].set_axis_off()
 
         plt.tight_layout()

@@ -22,12 +22,8 @@ args = parser.parse_args()
 
 # compute metrics
 summaries = {
-    'total_residual': [],
-    'masked_residual': [],
-    'unmasked_residual': [],
-    'total_residual_tgt': [],
-    'masked_residual_tgt': [],
-    'unmasked_residual_tgt': [],
+    'x_psnr': [],
+    'y_psnr': []
 }
 csvpath = Path(args.out) / args.model / f"{args.coil}_{args.organ}" / args.shape / "scores.csv"
 if csvpath.exists():
@@ -40,18 +36,18 @@ if csvpath.exists():
     df = pd.DataFrame(summaries)
     print(tabulate(df, headers='keys', tablefmt='psql'))
 
-    zs = data['perturbation']
-    mu, err = zs.mean(), 1.96*zs.std() / np.sqrt(len(zs))
-    print(f"Perturbation: {mu:.2f} +- {err:.2f}")
-
-    xs = data['unmasked_residual']
-    ys = data['masked_residual_tgt']
+    x_psnr = data['x_psnr']
+    y_psnr = data['y_psnr']
 
     plt.title(f"{args.model}: {args.organ} ({args.coil}) - {args.shape}")
-    plt.boxplot([zs, xs, ys], tick_labels=['perturbation', 'unmasked residual', 'masked residual (target)'])
+    plt.boxplot([x_psnr, y_psnr], tick_labels=['input', 'output'])
+    plt.xlabel('metric')
+    plt.ylabel('PSNR')
     plt.show()
 
-    ts = xs + ys + zs
+    ts = x_psnr / y_psnr
     idx = np.argsort(ts).to_list()
     print(f'Top scoring  : {idx[:10]}')
     print(f'Worst scoring: {idx[-10:]}')
+else:
+    raise FileNotFoundError(csvpath)
