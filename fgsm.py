@@ -128,4 +128,4 @@ class TargetedFGSM:
             adv_sample = Sample.from_torch(x_best + z, mask_pt, sample.metadata)
             y_adv = self.model(adv_sample)
 
-        return utils.rss(adv_sample.image), y_adv, y_tgt, m
+        return adv_sample, y_adv, y_tgt, m
