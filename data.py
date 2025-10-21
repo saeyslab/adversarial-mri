@@ -102,6 +102,7 @@ class Sample:
                     "padding_right": padding_right,
                     "encoding_size": enc_size,
                     "recon_size": recon_size,
+                    "fname": fname,
                     **file.attrs,
                 }
 
