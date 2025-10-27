@@ -14,10 +14,13 @@ import toml
 from data import Sample, MRIDataset
 
 from skimage.metrics import peak_signal_noise_ratio as psnr
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import normalized_root_mse as nrmse
 
 from tqdm import tqdm
 
-from utils import zero_fill
+import utils
+from utils import zero_fill, normalize
 
 from pathlib import Path
 
@@ -25,6 +28,17 @@ from models.unet import UNet
 from models.varnet import VarNet
 
 from tabulate import tabulate
+
+def plot_dist(path, x_data, y_data, title, log=False):
+    plt.scatter(x_data, y_data)
+    if log:
+        ax = plt.gca()
+        ax.set_yscale('log')
+        ax.set_xscale('log')
+
+    plt.tight_layout()
+    plt.savefig(path / f"{title}.pdf")
+    plt.close()
 
 # parser arguments
 parser = argparse.ArgumentParser()
@@ -60,12 +74,28 @@ assert outpath.exists(), f'Directory does not exist: {outpath}'
 weightpath = outpath / f"{args.model}.pt"
 model = model_modules[args.model](args.organ, args.coil, weightpath, config, device=device)
 
+# define masks
+mask_drawings = {
+    "square": {
+        "size": 50,
+        "thickness": -1
+    },
+    "line": {
+        "size": 60,
+        "thickness": 4
+    }
+}
+
 # compute metrics
 summaries = {
     'x_psnr': [],
     'y_psnr': [],
     'x_mse': [],
-    'y_mse': []
+    'y_mse': [],
+    'x_ssim': [],
+    'y_ssim': [],
+    'loss1': [],
+    'loss2': []
 }
 path = outpath / args.shape
 if path.exists():
@@ -85,13 +115,30 @@ if path.exists():
                 # get inputs
                 orig_image = zero_fill(sample).squeeze()
                 adv_image = zero_fill(adv_sample).squeeze()
-                x_mse = np.sqrt(np.square(orig_image - adv_image).sum())
+                x_mse = nrmse(normalize(orig_image), normalize(adv_image))
+                x_ssim = ssim(normalize(orig_image), normalize(adv_image), data_range=1)
 
                 # reconstruct outputs
                 with torch.no_grad():
-                    orig_output = model(sample).cpu().detach().numpy().squeeze()
+                    orig_output_pt = model(sample)
+                    orig_output = orig_output_pt.cpu().detach().numpy().squeeze()
                     adv_output = model(adv_sample).cpu().detach().numpy().squeeze()
-                y_mse = np.sqrt(np.square(orig_output - adv_output).sum())
+                y_mse = nrmse(normalize(orig_output), normalize(adv_output))
+                y_ssim = ssim(normalize(orig_output), normalize(adv_output), data_range=1)
+
+                # construct mask
+                mask_params = mask_drawings[args.shape]
+                mask = utils.make_xdet_cv_like(orig_output_pt,
+                                        kind=args.shape,
+                                        size=mask_params['size'], thickness=mask_params['thickness'],
+                                        value=1.0).cpu().detach().numpy()
+                
+                # compute loss
+                y_rng = orig_output.max() - orig_output.min()
+                alpha_eff = .3 * y_rng
+                y_tgt = orig_output + alpha_eff * mask
+                loss1 = np.square(mask * (adv_output - y_tgt)).sum() / np.sum(mask)
+                loss2 = np.square((1 - mask) * (adv_output - orig_output)).sum() / np.sum(1 - mask)
                 
                 # plot results
                 fig, axes = plt.subplots(2, 2)
@@ -112,9 +159,21 @@ if path.exists():
                 # save metrics
                 summaries['x_mse'].append(x_mse)
                 summaries['y_mse'].append(y_mse)
-                summaries['x_psnr'].append(psnr(orig_image, adv_image))
-                summaries['y_psnr'].append(psnr(orig_output, adv_output))
+                summaries['x_psnr'].append(psnr(normalize(orig_image), normalize(adv_image), data_range=1))
+                summaries['y_psnr'].append(psnr(normalize(orig_output), normalize(adv_output), data_range=1))
+                summaries['x_ssim'].append(x_ssim)
+                summaries['y_ssim'].append(y_ssim)
+                summaries['loss1'].append(loss1)
+                summaries['loss2'].append(loss2)
     
+    plot_dist(path, summaries['x_mse'], summaries['y_mse'], 'mse', log=True)
+    plot_dist(path, summaries['x_psnr'], summaries['y_psnr'], 'psnr')
+    plot_dist(path, summaries['x_ssim'], summaries['y_ssim'], 'ssim')
+    plot_dist(path, summaries['loss1'], summaries['loss2'], 'loss', log=True)
+
+    df = pd.DataFrame(summaries)
+    df.to_csv(path / 'scores.csv', sep=',', encoding='utf-8', index=False, header=True)
+
     for k in summaries.keys():
         summaries[k] = [np.mean(summaries[k]), 1.96 * np.std(summaries[k]) / np.sqrt(len(summaries[k]))]
 
