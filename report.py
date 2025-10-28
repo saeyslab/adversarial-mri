@@ -29,6 +29,23 @@ from models.varnet import VarNet
 
 from tabulate import tabulate
 
+def compute_metrics(x, y, x_adv, y_adv, mask=None):
+    if mask is None:
+        x_n, y_n = normalize(x), normalize(y)
+        x_adv_n, y_adv_n = normalize(x_adv), normalize(y_adv)
+    else:
+        x_n, y_n = normalize(mask * x), normalize(mask * y)
+        x_adv_n, y_adv_n = normalize(mask * x_adv), normalize(mask * y_adv)
+    
+    x_n, y_n = x_n.squeeze(), y_n.squeeze()
+    x_adv_n, y_adv_n = x_adv_n.squeeze(), y_adv_n.squeeze()
+
+    x_mse, y_mse = nrmse(x_n, x_adv_n), nrmse(y_n, y_adv_n)
+    x_ssim, y_ssim = ssim(x_n, x_adv_n, data_range=1), ssim(y_n, y_adv_n, data_range=1)
+    x_psnr, y_psnr = psnr(x_n, x_adv_n, data_range=1), psnr(y_n, y_adv_n, data_range=1)
+
+    return (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr)
+
 def plot_dist(path, x_data, y_data, title, log=False):
     plt.scatter(x_data, y_data)
     if log:
@@ -88,12 +105,20 @@ mask_drawings = {
 
 # compute metrics
 summaries = {
+    'fname': [],
+    'slice': [],
     'x_psnr': [],
     'y_psnr': [],
     'x_mse': [],
     'y_mse': [],
     'x_ssim': [],
     'y_ssim': [],
+    'x_psnr_mask': [],
+    'y_psnr_mask': [],
+    'x_mse_mask': [],
+    'y_mse_mask': [],
+    'x_ssim_mask': [],
+    'y_ssim_mask': [],
     'loss1': [],
     'loss2': []
 }
@@ -115,16 +140,12 @@ if path.exists():
                 # get inputs
                 orig_image = zero_fill(sample).squeeze()
                 adv_image = zero_fill(adv_sample).squeeze()
-                x_mse = nrmse(normalize(orig_image), normalize(adv_image))
-                x_ssim = ssim(normalize(orig_image), normalize(adv_image), data_range=1)
 
                 # reconstruct outputs
                 with torch.no_grad():
                     orig_output_pt = model(sample)
                     orig_output = orig_output_pt.cpu().detach().numpy().squeeze()
                     adv_output = model(adv_sample).cpu().detach().numpy().squeeze()
-                y_mse = nrmse(normalize(orig_output), normalize(adv_output))
-                y_ssim = ssim(normalize(orig_output), normalize(adv_output), data_range=1)
 
                 # construct mask
                 mask_params = mask_drawings[args.shape]
@@ -157,28 +178,30 @@ if path.exists():
                 plt.close()
 
                 # save metrics
+                (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr) = compute_metrics(orig_image, orig_output, adv_image, adv_output)
+                (x_mse_mask, x_ssim_mask, x_psnr_mask), (y_mse_mask, y_ssim_mask, y_psnr_mask) = compute_metrics(orig_image, orig_output, adv_image, adv_output, mask)
+
+                summaries['fname'].append(fname)
+                summaries['slice'].append(idx)
+
                 summaries['x_mse'].append(x_mse)
                 summaries['y_mse'].append(y_mse)
-                summaries['x_psnr'].append(psnr(normalize(orig_image), normalize(adv_image), data_range=1))
-                summaries['y_psnr'].append(psnr(normalize(orig_output), normalize(adv_output), data_range=1))
+                summaries['x_psnr'].append(x_psnr)
+                summaries['y_psnr'].append(y_psnr)
                 summaries['x_ssim'].append(x_ssim)
                 summaries['y_ssim'].append(y_ssim)
+
                 summaries['loss1'].append(loss1)
                 summaries['loss2'].append(loss2)
-    
-    plot_dist(path, summaries['x_mse'], summaries['y_mse'], 'mse', log=True)
-    plot_dist(path, summaries['x_psnr'], summaries['y_psnr'], 'psnr')
-    plot_dist(path, summaries['x_ssim'], summaries['y_ssim'], 'ssim')
-    plot_dist(path, summaries['loss1'], summaries['loss2'], 'loss', log=True)
+
+                summaries['x_mse_mask'].append(x_mse_mask)
+                summaries['y_mse_mask'].append(y_mse_mask)
+                summaries['x_psnr_mask'].append(x_psnr_mask)
+                summaries['y_psnr_mask'].append(y_psnr_mask)
+                summaries['x_ssim_mask'].append(x_ssim_mask)
+                summaries['y_ssim_mask'].append(y_ssim_mask)
 
     df = pd.DataFrame(summaries)
     df.to_csv(path / 'scores.csv', sep=',', encoding='utf-8', index=False, header=True)
-
-    for k in summaries.keys():
-        summaries[k] = [np.mean(summaries[k]), 1.96 * np.std(summaries[k]) / np.sqrt(len(summaries[k]))]
-
-    df = pd.DataFrame(summaries)
-    df.index = ["mean", "error"]
-    print(tabulate(df, headers='keys', tablefmt='pretty'))
 else:
     raise FileNotFoundError(path)
