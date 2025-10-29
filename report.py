@@ -6,6 +6,8 @@ import numpy as np
 
 import pandas as pd
 
+import sigpy.mri as mr
+
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -19,8 +21,7 @@ from skimage.metrics import normalized_root_mse as nrmse
 
 from tqdm import tqdm
 
-import utils
-from utils import zero_fill, normalize
+from utils import make_xdet_cv_like, zero_fill, normalize
 
 from pathlib import Path
 
@@ -45,6 +46,19 @@ def compute_metrics(x, y, x_adv, y_adv, mask=None):
     x_psnr, y_psnr = psnr(x_n, x_adv_n, data_range=1), psnr(y_n, y_adv_n, data_range=1)
 
     return (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr)
+
+def compute_tv_metrics(x_tilde, y_tilde, lamda=.005):
+    mps = mr.app.EspiritCalib(x_tilde).run()
+    y_tv = abs(mr.app.TotalVariationRecon(x_tilde, mps, lamda).run()).real
+
+    y_tilde_n = normalize(y_tilde).squeeze()
+    y_tv_n = normalize(y_tv).squeeze()
+
+    tv_mse = nrmse(y_tilde_n, y_tv_n)
+    tv_ssim = ssim(y_tilde_n, y_tv_n, data_range=1)
+    tv_psnr = psnr(y_tilde_n, y_tv_n, data_range=1)
+
+    return tv_mse, tv_ssim, tv_psnr
 
 def plot_dist(path, x_data, y_data, title, log=False):
     plt.scatter(x_data, y_data)
@@ -119,6 +133,9 @@ summaries = {
     'y_mse_mask': [],
     'x_ssim_mask': [],
     'y_ssim_mask': [],
+    'tv_psnr': [],
+    'tv_mse': [],
+    'tv_ssim': [],
     'loss1': [],
     'loss2': []
 }
@@ -149,7 +166,7 @@ if path.exists():
 
                 # construct mask
                 mask_params = mask_drawings[args.shape]
-                mask = utils.make_xdet_cv_like(orig_output_pt,
+                mask = make_xdet_cv_like(orig_output_pt,
                                         kind=args.shape,
                                         size=mask_params['size'], thickness=mask_params['thickness'],
                                         value=1.0).cpu().detach().numpy()
@@ -180,6 +197,7 @@ if path.exists():
                 # save metrics
                 (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr) = compute_metrics(orig_image, orig_output, adv_image, adv_output)
                 (x_mse_mask, x_ssim_mask, x_psnr_mask), (y_mse_mask, y_ssim_mask, y_psnr_mask) = compute_metrics(orig_image, orig_output, adv_image, adv_output, mask)
+                tv_mse, tv_ssim, tv_psnr = compute_tv_metrics(adv_sample.kspace, adv_image)
 
                 summaries['fname'].append(fname)
                 summaries['slice'].append(idx)
@@ -200,6 +218,10 @@ if path.exists():
                 summaries['y_psnr_mask'].append(y_psnr_mask)
                 summaries['x_ssim_mask'].append(x_ssim_mask)
                 summaries['y_ssim_mask'].append(y_ssim_mask)
+
+                summaries['tv_mse'].append(tv_mse)
+                summaries['tv_ssim'].append(tv_ssim)
+                summaries['tv_psnr'].append(tv_psnr)
 
     df = pd.DataFrame(summaries)
     df.to_csv(path / 'scores.csv', sep=',', encoding='utf-8', index=False, header=True)
