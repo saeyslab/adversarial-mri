@@ -17,6 +17,12 @@ def create_plot(df, metric, label, mask=False):
     plt.ylabel(label)
     plt.show()
 
+def create_tv_plot(df, metric, label):
+    plt.boxplot([df[f'tv_{metric}_orig'], df[f'tv_{metric}_adv']], tick_labels=['original', 'perturbed'])
+    plt.xlabel('data')
+    plt.ylabel(label)
+    plt.show()
+
 # parser arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-out', type=str, default='./out', help='output directory')
@@ -43,6 +49,10 @@ print(f"Lowest PSNR: {idx[:5]}")
 print(f"Highest PSNR: {idx[-5:]}")
 
 # create plots
-create_plot(df, 'psnr', 'PSNR')
+"""create_plot(df, 'psnr', 'PSNR')
 create_plot(df, 'mse', 'NRMSE')
-create_plot(df, 'ssim', 'SSIM')
+create_plot(df, 'ssim', 'SSIM')"""
+
+create_tv_plot(df, 'psnr', 'PSNR')
+create_tv_plot(df, 'mse', 'NRMSE')
+create_tv_plot(df, 'ssim', 'SSIM')

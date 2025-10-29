@@ -6,6 +6,7 @@ import numpy as np
 
 import pandas as pd
 
+import sigpy as sp
 import sigpy.mri as mr
 
 import matplotlib.pyplot as plt
@@ -48,8 +49,11 @@ def compute_metrics(x, y, x_adv, y_adv, mask=None):
     return (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr)
 
 def compute_tv_metrics(x_tilde, y_tilde, lamda=.005):
-    mps = mr.app.EspiritCalib(x_tilde.squeeze(0)).run()
-    y_tv = abs(mr.app.TotalVariationRecon(x_tilde.squeeze(0), mps, lamda).run()).real
+    device = sp.Device(0)
+    with device:
+        x_dev = sp.to_device(x_tilde.squeeze(0), device)
+        mps = mr.app.EspiritCalib(x_dev).run()
+        y_tv = abs(mr.app.TotalVariationRecon(x_dev, mps, lamda).run()).real
 
     y_tilde_n = normalize(y_tilde).squeeze()
     y_tv_n = normalize(y_tv).squeeze()

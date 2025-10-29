@@ -16,3 +16,4 @@ PyWavelets
 sigpy
 pandas
 tabulate
+cupy
