@@ -48,8 +48,8 @@ def compute_metrics(x, y, x_adv, y_adv, mask=None):
     return (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr)
 
 def compute_tv_metrics(x_tilde, y_tilde, lamda=.005):
-    mps = mr.app.EspiritCalib(x_tilde).run()
-    y_tv = abs(mr.app.TotalVariationRecon(x_tilde, mps, lamda).run()).real
+    mps = mr.app.EspiritCalib(x_tilde.squeeze(0)).run()
+    y_tv = abs(mr.app.TotalVariationRecon(x_tilde.squeeze(0), mps, lamda).run()).real
 
     y_tilde_n = normalize(y_tilde).squeeze()
     y_tv_n = normalize(y_tv).squeeze()
@@ -133,9 +133,12 @@ summaries = {
     'y_mse_mask': [],
     'x_ssim_mask': [],
     'y_ssim_mask': [],
-    'tv_psnr': [],
-    'tv_mse': [],
-    'tv_ssim': [],
+    'tv_psnr_orig': [],
+    'tv_mse_orig': [],
+    'tv_ssim_orig': [],
+    'tv_psnr_adv': [],
+    'tv_mse_adv': [],
+    'tv_ssim_adv': [],
     'loss1': [],
     'loss2': []
 }
@@ -197,7 +200,8 @@ if path.exists():
                 # save metrics
                 (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr) = compute_metrics(orig_image, orig_output, adv_image, adv_output)
                 (x_mse_mask, x_ssim_mask, x_psnr_mask), (y_mse_mask, y_ssim_mask, y_psnr_mask) = compute_metrics(orig_image, orig_output, adv_image, adv_output, mask)
-                tv_mse, tv_ssim, tv_psnr = compute_tv_metrics(adv_sample.kspace, adv_image)
+                tv_mse_orig, tv_ssim_orig, tv_psnr_orig = compute_tv_metrics(sample.kspace, orig_output)
+                tv_mse_adv, tv_ssim_adv, tv_psnr_adv = compute_tv_metrics(adv_sample.kspace, adv_output)
 
                 summaries['fname'].append(fname)
                 summaries['slice'].append(idx)
@@ -219,9 +223,13 @@ if path.exists():
                 summaries['x_ssim_mask'].append(x_ssim_mask)
                 summaries['y_ssim_mask'].append(y_ssim_mask)
 
-                summaries['tv_mse'].append(tv_mse)
-                summaries['tv_ssim'].append(tv_ssim)
-                summaries['tv_psnr'].append(tv_psnr)
+                summaries['tv_mse_orig'].append(tv_mse_orig)
+                summaries['tv_ssim_orig'].append(tv_ssim_orig)
+                summaries['tv_psnr_orig'].append(tv_psnr_orig)
+
+                summaries['tv_mse_adv'].append(tv_mse_adv)
+                summaries['tv_ssim_adv'].append(tv_ssim_adv)
+                summaries['tv_psnr_adv'].append(tv_psnr_adv)
 
     df = pd.DataFrame(summaries)
     df.to_csv(path / 'scores.csv', sep=',', encoding='utf-8', index=False, header=True)
