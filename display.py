@@ -49,18 +49,24 @@ print(f"Highest PSNR: {idx[-5:]}")
 # create plots
 create_plot(df, 'psnr', 'PSNR')
 plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-psnr.pdf')
+plt.close()
 
 create_plot(df, 'mse', 'NRMSE')
 plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-nrmse.pdf')
+plt.close()
 
 create_plot(df, 'ssim', 'SSIM')
 plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ssim.pdf')
+plt.close()
 
 create_tv_plot(df, 'psnr', 'PSNR')
 plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-psnr-tv.pdf')
+plt.close()
 
 create_tv_plot(df, 'mse', 'NRMSE')
 plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-nrmse-tv.pdf')
+plt.close()
 
 create_tv_plot(df, 'ssim', 'SSIM')
 plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ssim-tv.pdf')
+plt.close()
