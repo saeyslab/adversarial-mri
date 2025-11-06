@@ -15,13 +15,11 @@ def create_plot(df, metric, label, mask=False):
         plt.boxplot([df[f'x_{metric}'], df[f'y_{metric}']], tick_labels=['input', 'reconstructions'])
     plt.xlabel('data')
     plt.ylabel(label)
-    plt.show()
 
 def create_tv_plot(df, metric, label):
     plt.boxplot([df[f'tv_{metric}_orig'], df[f'tv_{metric}_adv']], tick_labels=['original', 'perturbed'])
     plt.xlabel('data')
     plt.ylabel(label)
-    plt.show()
 
 # parser arguments
 parser = argparse.ArgumentParser()
@@ -49,10 +47,20 @@ print(f"Lowest PSNR: {idx[:5]}")
 print(f"Highest PSNR: {idx[-5:]}")
 
 # create plots
-"""create_plot(df, 'psnr', 'PSNR')
+create_plot(df, 'psnr', 'PSNR')
+plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-psnr.pdf')
+
 create_plot(df, 'mse', 'NRMSE')
-create_plot(df, 'ssim', 'SSIM')"""
+plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-nrmse.pdf')
+
+create_plot(df, 'ssim', 'SSIM')
+plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ssim.pdf')
 
 create_tv_plot(df, 'psnr', 'PSNR')
+plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-psnr-tv.pdf')
+
 create_tv_plot(df, 'mse', 'NRMSE')
+plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-nrmse-tv.pdf')
+
 create_tv_plot(df, 'ssim', 'SSIM')
+plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ssim-tv.pdf')
