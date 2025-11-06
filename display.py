@@ -37,6 +37,9 @@ assert outpath.exists(), f'Path does not exist: {outpath}'
 
 df = pd.read_csv(outpath)
 
+results = df[['x_psnr', 'y_psnr', 'x_mse', 'y_mse', 'x_ssim', 'y_ssim']]
+print(results.describe())
+
 # print best and worst examples
 values = df['y_psnr'].to_numpy()
 idx = np.argsort(abs(values - np.median(values)))
