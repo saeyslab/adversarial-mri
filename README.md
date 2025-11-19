@@ -17,6 +17,12 @@ We only evaluated our attack on the brain and knee portions of the data, but pro
 
 # CLI reference
 
+There are three scripts in the codebase meant for external use:
+
+* `main.py`, which computes all the adversarial perturbations
+* `report.py`, which computes all the metrics
+* `display.py`, which generates the plots
+
 Once the environment has been set up, experiments can be run using the `main.py` script.
 This script takes a number of arguments, detailed below:
 
@@ -33,3 +39,9 @@ This script takes a number of arguments, detailed below:
 | `--step FLOAT` | float | `1e-7` | Attack step size. |
 
 Note that our attack can also use squares as the target shapes, although these results were not reported in the paper since we find them to be inferior to lines.
+
+The `main.py` script generates the perturbations and stores them in the specified output directory.
+Once this script is completed, a report can be generated using `report.py`, which takes the same arguments as `main.py`.
+These reports take the form of CSV files containing all measurements of the metrics detailed in the paper.
+
+To generate the plots we showed in the paper, run the `display.py` script after generating the report.
