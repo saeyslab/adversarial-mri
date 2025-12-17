@@ -6,7 +6,76 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
+import seaborn as sns
+
+import re
+
 from pathlib import Path
+
+pattern = re.compile(r"^tv_(?P<name>[^_]+)_(?P<kind>orig|adv)$")
+
+def repl(match):
+    name = match.group("name")
+    kind = match.group("kind")
+    return (
+        f"input-{name}"
+        if kind == "orig"
+        else f"reconstruction-{name}"
+    )
+
+def create_ridge_plot(results):
+    df_long = (
+        results
+        .rename(columns=lambda c: c.replace('x_', 'input-').replace('y_', 'reconstruction-'))
+        .rename(columns=lambda c: re.sub(pattern, repl, c))
+        .melt(var_name='source_metric', value_name='value')
+    )
+
+    df_long[['source', 'metric']] = df_long['source_metric'].str.split('-', expand=True)
+    df_long = df_long.drop(columns='source_metric')
+
+    sns.set_theme(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
+
+    g = sns.FacetGrid(
+        df_long,
+        row="metric",
+        hue="source",
+        aspect=4,
+        height=1.4,
+        sharex=False
+    )
+
+    g.map(
+        sns.histplot,
+        "value",
+        bins="fd",
+        stat="count",
+        element="step",
+        fill=True,
+        common_norm=False,
+        alpha=0.5
+    )
+
+    g.map(plt.axhline, y=0, lw=1, clip_on=False)
+    g.axes_dict["mse"].set_xscale("log")
+
+    g.set_titles("")
+    g.set(yticks=[], ylabel="")
+    g.despine(bottom=True, left=True)
+
+    g.add_legend(title="")
+
+    for metric, ax in g.axes_dict.items():
+        ax.text(
+            -0.02, 0.5,
+            metric.upper(),
+            transform=ax.transAxes,
+            ha="right",
+            va="center",
+            fontsize=11,
+            fontweight="bold",
+            clip_on=False
+        )
 
 def create_plot(df, metric, label, mask=False):
     if mask:
@@ -50,6 +119,14 @@ print(f"Lowest PSNR: {idx[:5]}")
 print(f"Highest PSNR: {idx[-5:]}")
 
 # create plots
+create_ridge_plot(df[['x_psnr', 'y_psnr', 'x_mse', 'y_mse', 'x_ssim', 'y_ssim']])
+plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ridge.pdf')
+plt.close()
+
+create_ridge_plot(df[['tv_psnr_orig', 'tv_psnr_adv', 'tv_mse_orig', 'tv_mse_adv', 'tv_ssim_orig', 'tv_ssim_adv']])
+plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ridge-tv.pdf')
+plt.close()
+
 create_plot(df, 'psnr', 'PSNR')
 plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-psnr.pdf')
 plt.close()
