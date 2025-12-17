@@ -18,15 +18,15 @@ def repl(match):
     name = match.group("name")
     kind = match.group("kind")
     return (
-        f"input-{name}"
+        f"original-{name}"
         if kind == "orig"
-        else f"reconstruction-{name}"
+        else f"adversarial-{name}"
     )
 
 def create_ridge_plot(results):
     df_long = (
         results
-        .rename(columns=lambda c: c.replace('x_', 'input-').replace('y_', 'reconstruction-'))
+        .rename(columns=lambda c: c.replace('x_', 'original-').replace('y_', 'adversarial-'))
         .rename(columns=lambda c: re.sub(pattern, repl, c))
         .melt(var_name='source_metric', value_name='value')
     )
@@ -104,6 +104,7 @@ args = parser.parse_args()
 outpath = Path(args.out) / args.model / f"{args.coil}_{args.organ}" / args.shape / "scores.csv"
 assert outpath.exists(), f'Path does not exist: {outpath}'
 
+print(f"Loading data from {outpath}")
 df = pd.read_csv(outpath)
 
 results = df[['x_psnr', 'y_psnr', 'x_mse', 'y_mse', 'x_ssim', 'y_ssim']]
