@@ -77,19 +77,6 @@ def create_ridge_plot(results):
             clip_on=False
         )
 
-def create_plot(df, metric, label, mask=False):
-    if mask:
-        plt.boxplot([df[f'x_{metric}_mask'], df[f'y_{metric}_mask']], tick_labels=['input', 'reconstructions'])
-    else:
-        plt.boxplot([df[f'x_{metric}'], df[f'y_{metric}']], tick_labels=['input', 'reconstructions'])
-    plt.xlabel('data')
-    plt.ylabel(label)
-
-def create_tv_plot(df, metric, label):
-    plt.boxplot([df[f'tv_{metric}_orig'], df[f'tv_{metric}_adv']], tick_labels=['original', 'perturbed'])
-    plt.xlabel('data')
-    plt.ylabel(label)
-
 # parser arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('-out', type=str, default='./out', help='output directory')
@@ -126,28 +113,4 @@ plt.close()
 
 create_ridge_plot(df[['tv_psnr_orig', 'tv_psnr_adv', 'tv_mse_orig', 'tv_mse_adv', 'tv_ssim_orig', 'tv_ssim_adv']])
 plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ridge-tv.pdf')
-plt.close()
-
-create_plot(df, 'psnr', 'PSNR')
-plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-psnr.pdf')
-plt.close()
-
-create_plot(df, 'mse', 'NRMSE')
-plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-nrmse.pdf')
-plt.close()
-
-create_plot(df, 'ssim', 'SSIM')
-plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ssim.pdf')
-plt.close()
-
-create_tv_plot(df, 'psnr', 'PSNR')
-plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-psnr-tv.pdf')
-plt.close()
-
-create_tv_plot(df, 'mse', 'NRMSE')
-plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-nrmse-tv.pdf')
-plt.close()
-
-create_tv_plot(df, 'ssim', 'SSIM')
-plt.savefig(f'plots/{args.model}-{args.coil}-{args.organ}-ssim-tv.pdf')
 plt.close()
