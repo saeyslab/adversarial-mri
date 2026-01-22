@@ -24,9 +24,7 @@ import torch.nn.functional as F
 
 import csv
 
-from fastmri.data.transforms import (
-    ifft2c, rss, center_crop
-)
+from fastmri.data.transforms import center_crop
 
 def _out_root():
     base = os.environ.get("VSC_SCRATCH")
@@ -261,10 +259,13 @@ def q_normalize(img):
 def prettify(sample, kspace=False) -> np.ndarray:
     img = sample
     if kspace:
-        img = ifft2c(img.kspace)
+        img = torch.fft.ifftshift(torch.from_numpy(img.kspace), dim=(-2, -1))
+        img = torch.fft.ifft2(img, norm="ortho")
+        img = torch.fft.fftshift(img, dim=(-2, -1))
+
     img = rss(img)
     img = center_crop(img, (320, 320))
     img = q_normalize(img)
-    img = torch.flip(img, dims=(-2,))  # vertical flip
+    img = torch.flip(img, dims=(-2,))
 
-    return img.cpu().detach().numpy()
+    return img.cpu().detach().numpy().squeeze()
