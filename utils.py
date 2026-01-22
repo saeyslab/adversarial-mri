@@ -24,6 +24,10 @@ import torch.nn.functional as F
 
 import csv
 
+from fastmri.data.transforms import (
+    ifft2c, rss, center_crop
+)
+
 def _out_root():
     base = os.environ.get("VSC_SCRATCH")
     r = Path(base) / "fastMRI" if base else Path("./outputs/fastMRI")
@@ -245,3 +249,22 @@ def rss(img):
         return torch.sqrt(torch.sum(torch.square(abs(img)), dim=1, keepdims=True))
     else:
         raise TypeError("Invalid data type")
+
+def q_normalize(img):
+    img = img.abs()
+    vmin = torch.quantile(img, 0.01)
+    vmax = torch.quantile(img, 0.99)
+    img = torch.clamp(img, vmin, vmax)
+    img = (img - vmin) / (vmax - vmin)
+    return img
+
+def prettify(sample, kspace=False) -> np.ndarray:
+    img = sample
+    if kspace:
+        img = ifft2c(img.kspace)
+    img = rss(img)
+    img = center_crop(img, (320, 320))
+    img = q_normalize(img)
+    img = torch.flip(img, dims=(-2,))  # vertical flip
+
+    return img.cpu().detach().numpy()

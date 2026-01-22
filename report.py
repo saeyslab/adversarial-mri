@@ -148,92 +148,75 @@ summaries = {
 }
 path = outpath / args.shape
 if path.exists():
-    with PdfPages(path / 'plots.pdf') as pdf:
-        for sample in tqdm(dataset):
-            fname = sample.metadata['fname'].split('/')[-1]
-            result = path / f"{fname}.npy"
-            if result.exists():
-                # choose slice
-                idx = sample.num_slices // 2
-                sample = sample.at_slice(sample.num_slices // 2)
+    for sample in tqdm(dataset):
+        fname = sample.metadata['fname'].split('/')[-1]
+        result = path / f"{fname}.npy"
+        if result.exists():
+            # choose slice
+            idx = sample.num_slices // 2
+            sample = sample.at_slice(sample.num_slices // 2)
 
-                # load perturbation
-                delta = np.load(result)
-                adv_sample = Sample.from_numpy(sample.kspace + delta, sample.mask, sample.metadata)
+            # load perturbation
+            delta = np.load(result)
+            adv_sample = Sample.from_numpy(sample.kspace + delta, sample.mask, sample.metadata)
 
-                # get inputs
-                orig_image = zero_fill(sample).squeeze()
-                adv_image = zero_fill(adv_sample).squeeze()
+            # get inputs
+            orig_image = zero_fill(sample).squeeze()
+            adv_image = zero_fill(adv_sample).squeeze()
 
-                # reconstruct outputs
-                with torch.no_grad():
-                    orig_output_pt = model(sample)
-                    orig_output = orig_output_pt.cpu().detach().numpy().squeeze()
-                    adv_output = model(adv_sample).cpu().detach().numpy().squeeze()
+            # reconstruct outputs
+            with torch.no_grad():
+                orig_output_pt = model(sample)
+                orig_output = orig_output_pt.cpu().detach().numpy().squeeze()
+                adv_output = model(adv_sample).cpu().detach().numpy().squeeze()
 
-                # construct mask
-                mask_params = mask_drawings[args.shape]
-                mask = make_xdet_cv_like(orig_output_pt,
-                                        kind=args.shape,
-                                        size=mask_params['size'], thickness=mask_params['thickness'],
-                                        value=1.0).cpu().detach().numpy()
-                
-                # compute loss
-                y_rng = orig_output.max() - orig_output.min()
-                alpha_eff = .3 * y_rng
-                y_tgt = orig_output + alpha_eff * mask
-                loss1 = np.square(mask * (adv_output - y_tgt)).sum() / np.sum(mask)
-                loss2 = np.square((1 - mask) * (adv_output - orig_output)).sum() / np.sum(1 - mask)
-                
-                # plot results
-                fig, axes = plt.subplots(2, 2)
-                axes[0, 0].imshow(orig_image, cmap='gray')
-                axes[0, 0].axis('off')
-                axes[0, 1].imshow(adv_image, cmap='gray')
-                axes[0, 1].axis('off')
+            # construct mask
+            mask_params = mask_drawings[args.shape]
+            mask = make_xdet_cv_like(orig_output_pt,
+                                    kind=args.shape,
+                                    size=mask_params['size'], thickness=mask_params['thickness'],
+                                    value=1.0).cpu().detach().numpy()
+            
+            # compute loss
+            y_rng = orig_output.max() - orig_output.min()
+            alpha_eff = .3 * y_rng
+            y_tgt = orig_output + alpha_eff * mask
+            loss1 = np.square(mask * (adv_output - y_tgt)).sum() / np.sum(mask)
+            loss2 = np.square((1 - mask) * (adv_output - orig_output)).sum() / np.sum(1 - mask)
 
-                axes[1, 0].imshow(orig_output, cmap='gray')
-                axes[1, 0].axis('off')
-                axes[1, 1].imshow(adv_output, cmap='gray')
-                axes[1, 1].axis('off')
+            # save metrics
+            (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr) = compute_metrics(orig_image, orig_output, adv_image, adv_output)
+            (x_mse_mask, x_ssim_mask, x_psnr_mask), (y_mse_mask, y_ssim_mask, y_psnr_mask) = compute_metrics(orig_image, orig_output, adv_image, adv_output, mask)
+            tv_mse_orig, tv_ssim_orig, tv_psnr_orig = compute_tv_metrics(sample.kspace, orig_output)
+            tv_mse_adv, tv_ssim_adv, tv_psnr_adv = compute_tv_metrics(adv_sample.kspace, adv_output)
 
-                plt.tight_layout()
-                pdf.savefig()
-                plt.close()
+            summaries['fname'].append(fname)
+            summaries['slice'].append(idx)
 
-                # save metrics
-                (x_mse, x_ssim, x_psnr), (y_mse, y_ssim, y_psnr) = compute_metrics(orig_image, orig_output, adv_image, adv_output)
-                (x_mse_mask, x_ssim_mask, x_psnr_mask), (y_mse_mask, y_ssim_mask, y_psnr_mask) = compute_metrics(orig_image, orig_output, adv_image, adv_output, mask)
-                tv_mse_orig, tv_ssim_orig, tv_psnr_orig = compute_tv_metrics(sample.kspace, orig_output)
-                tv_mse_adv, tv_ssim_adv, tv_psnr_adv = compute_tv_metrics(adv_sample.kspace, adv_output)
+            summaries['x_mse'].append(x_mse)
+            summaries['y_mse'].append(y_mse)
+            summaries['x_psnr'].append(x_psnr)
+            summaries['y_psnr'].append(y_psnr)
+            summaries['x_ssim'].append(x_ssim)
+            summaries['y_ssim'].append(y_ssim)
 
-                summaries['fname'].append(fname)
-                summaries['slice'].append(idx)
+            summaries['loss1'].append(loss1)
+            summaries['loss2'].append(loss2)
 
-                summaries['x_mse'].append(x_mse)
-                summaries['y_mse'].append(y_mse)
-                summaries['x_psnr'].append(x_psnr)
-                summaries['y_psnr'].append(y_psnr)
-                summaries['x_ssim'].append(x_ssim)
-                summaries['y_ssim'].append(y_ssim)
+            summaries['x_mse_mask'].append(x_mse_mask)
+            summaries['y_mse_mask'].append(y_mse_mask)
+            summaries['x_psnr_mask'].append(x_psnr_mask)
+            summaries['y_psnr_mask'].append(y_psnr_mask)
+            summaries['x_ssim_mask'].append(x_ssim_mask)
+            summaries['y_ssim_mask'].append(y_ssim_mask)
 
-                summaries['loss1'].append(loss1)
-                summaries['loss2'].append(loss2)
+            summaries['tv_mse_orig'].append(tv_mse_orig)
+            summaries['tv_ssim_orig'].append(tv_ssim_orig)
+            summaries['tv_psnr_orig'].append(tv_psnr_orig)
 
-                summaries['x_mse_mask'].append(x_mse_mask)
-                summaries['y_mse_mask'].append(y_mse_mask)
-                summaries['x_psnr_mask'].append(x_psnr_mask)
-                summaries['y_psnr_mask'].append(y_psnr_mask)
-                summaries['x_ssim_mask'].append(x_ssim_mask)
-                summaries['y_ssim_mask'].append(y_ssim_mask)
-
-                summaries['tv_mse_orig'].append(tv_mse_orig)
-                summaries['tv_ssim_orig'].append(tv_ssim_orig)
-                summaries['tv_psnr_orig'].append(tv_psnr_orig)
-
-                summaries['tv_mse_adv'].append(tv_mse_adv)
-                summaries['tv_ssim_adv'].append(tv_ssim_adv)
-                summaries['tv_psnr_adv'].append(tv_psnr_adv)
+            summaries['tv_mse_adv'].append(tv_mse_adv)
+            summaries['tv_ssim_adv'].append(tv_ssim_adv)
+            summaries['tv_psnr_adv'].append(tv_psnr_adv)
 
     df = pd.DataFrame(summaries)
     df.to_csv(path / 'scores.csv', sep=',', encoding='utf-8', index=False, header=True)
