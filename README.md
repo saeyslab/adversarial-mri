@@ -21,7 +21,8 @@ There are three scripts in the codebase meant for external use:
 
 * `main.py`, which computes all the adversarial perturbations
 * `report.py`, which computes all the metrics
-* `display.py`, which generates the plots
+* `display.py`, which plots the metrics
+* `visualize.py`, which visualizes the resulting MR images
 
 Once the environment has been set up, experiments can be run using the `main.py` script.
 This script takes a number of arguments, detailed below:
