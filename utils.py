@@ -264,7 +264,10 @@ def prettify(sample, kspace=False) -> np.ndarray:
         img = torch.fft.fftshift(img, dim=(-2, -1))
 
     img = rss(img)
-    img = center_crop(img, (320, 320))
+
+    w, h = min(320, img.shape[-1]), min(320, img.shape[-2])
+    img = center_crop(img, (h, w))
+
     img = q_normalize(img)
     img = torch.flip(img, dims=(-2,))
 
